@@ -166,7 +166,7 @@ private fun LiveTvScreen() {
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                     factory = { viewContext ->
                         PlayerView(viewContext).apply {
-                            player = player
+                            this.player = player
                             useController = true
                             keepScreenOn = true
                         }
