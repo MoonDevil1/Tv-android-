@@ -453,7 +453,7 @@ private fun LiveTvScreen() {
                             nativeView.resizeMode = resizeMode
                             nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                             nativeView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_content_frame)?.setOnTouchListener { target, event ->
-                                val detector = (target.getTag(R.id.player_gesture_detector) as? GestureDetector) ?: GestureDetector(
+                                val detector = (target.tag as? GestureDetector) ?: GestureDetector(
                                     context,
                                     object : GestureDetector.SimpleOnGestureListener() {
                                         override fun onDown(e: MotionEvent) = true
@@ -469,10 +469,11 @@ private fun LiveTvScreen() {
                                             val start = first ?: return false
                                             if (kotlin.math.abs(distanceY) < kotlin.math.abs(distanceX)) return false
                                             if (start.x < target.width / 2f) {
-                                                val attrs = activity?.window?.attributes ?: return false
+                                                val window = activity?.window ?: return false
+                                                val attrs = window.attributes
                                                 val brightness = if (attrs.screenBrightness < 0f) 0.5f else attrs.screenBrightness
-                                                attrs.screenBrightness = (brightness - distanceY / target.height * 1.5f).coerceIn(0.02f, 1f)
-                                                activity.window.attributes = attrs
+                                                attrs.screenBrightness = (brightness - distanceY / target.height.coerceAtLeast(1) * 1.5f).coerceIn(0.02f, 1f)
+                                                window.attributes = attrs
                                                 Toast.makeText(context, "Brightness " + (attrs.screenBrightness * 100).toInt() + "%", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 player.volume = (player.volume - distanceY / target.height * 1.5f).coerceIn(0f, 1f)
@@ -481,7 +482,7 @@ private fun LiveTvScreen() {
                                             return true
                                         }
                                     }
-                                ).apply { setOnDoubleTapListener(this) }.also { target.setTag(R.id.player_gesture_detector, it) }
+                                ).apply { setOnDoubleTapListener(this) }.also { target.tag = it }
                                 detector.onTouchEvent(event)
                             }
                             host.findViewById<android.widget.Button>(R.id.ltv_rewind).setOnClickListener {
