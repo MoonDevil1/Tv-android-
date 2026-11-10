@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [main]
+    branches: [main, 'feature/full-media-player']
   pull_request:
     branches: [main]
   workflow_dispatch:
