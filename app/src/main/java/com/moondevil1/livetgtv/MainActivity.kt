@@ -451,7 +451,16 @@ private fun LiveTvScreen() {
                             nativeView.player = player
                             nativeView.keepScreenOn = true
                             nativeView.resizeMode = resizeMode
-                            nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                            nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)                            host.findViewById<android.widget.TextView>(R.id.ltv_channel_name).text = channel.name
+                            host.findViewById<android.widget.TextView>(R.id.ltv_channel_group).text = channel.group.ifBlank { "Live television" }
+                            host.findViewById<android.widget.TextView>(R.id.ltv_program_title).text = "LIVE  ·  ${channel.name}"
+                            host.findViewById<android.widget.TextView>(R.id.ltv_program_time).text = "ON AIR"
+                            host.findViewById<android.widget.ImageView>(R.id.ltv_channel_logo).let { logo ->
+                                logo.visibility = if (channel.logo.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
+                                if (channel.logo.isNotBlank()) coil.ImageLoader(context).enqueue(
+                                    coil.request.ImageRequest.Builder(context).data(channel.logo).target(logo).build()
+                                )
+                            }
                             nativeView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_content_frame)?.setOnTouchListener { target, event ->
                                 val detector = (target.tag as? GestureDetector) ?: run {
                                     val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
@@ -500,11 +509,11 @@ private fun LiveTvScreen() {
                                     text = if (player.volume == 0f) "Unmute" else "Mute"
                                 }
                             }
-                            host.findViewById<android.widget.Button>(R.id.ltv_previous).apply {
+                            host.findViewById<android.widget.ImageButton>(R.id.ltv_previous).apply {
                                 isEnabled = previousChannel != null
                                 setOnClickListener { previousChannel?.let { play(it) } }
                             }
-                            host.findViewById<android.widget.Button>(R.id.ltv_next).apply {
+                            host.findViewById<android.widget.ImageButton>(R.id.ltv_next).apply {
                                 isEnabled = nextChannel != null
                                 setOnClickListener { nextChannel?.let { play(it) } }
                             }
