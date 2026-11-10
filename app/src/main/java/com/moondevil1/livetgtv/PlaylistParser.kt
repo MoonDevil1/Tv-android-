@@ -12,6 +12,7 @@ object PlaylistParser {
         var group = "Other"
         var headers = linkedMapOf<String, String>()
         var licenseUrl: String? = null
+        var licenseKeyData: String? = null
         var licenseType: String? = null
         var manifestType: String? = null
         var licenseHeaders = linkedMapOf<String, String>()
@@ -56,13 +57,6 @@ object PlaylistParser {
                     else attrs["tvg-name"] ?: "Unknown channel"
                     logo = attrs["tvg-logo"].orEmpty()
                     group = attrs["group-title"] ?: "Other"
-                    headers = linkedMapOf()
-                    licenseUrl = null
-                    licenseType = null
-                    manifestType = null
-                    licenseHeaders = linkedMapOf()
-                    subtitleUrl = null
-                    subtitleLanguage = null
                 }
 
                 line.startsWith("#EXTVLCOPT:http-") -> {
@@ -92,11 +86,19 @@ object PlaylistParser {
                                 // Kodi syntax: license URL|request headers|optional flags.
                                 val parts = value.split('|')
                                 val candidate = parts.firstOrNull()?.trim().orEmpty()
-                                licenseUrl = candidate.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+                                if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
+                                    licenseUrl = candidate
+                                    licenseKeyData = null
+                                } else if (candidate.isNotBlank()) {
+                                    licenseKeyData = candidate
+                                    licenseUrl = null
+                                }
                                 if (parts.size > 1) parseHeaders(parts[1], licenseHeaders)
                             }
                             "inputstream.adaptive.license_type" -> licenseType = value
                             "inputstream.adaptive.manifest_type" -> manifestType = value
+                            "inputstream.adaptive.stream_headers",
+                            "inputstream.adaptive.manifest_headers" -> parseHeaders(value, headers)
                         }
                     }
                 }
@@ -112,10 +114,19 @@ object PlaylistParser {
                         licenseType = licenseType,
                         manifestType = manifestType,
                         licenseHeaders = licenseHeaders.toMap(),
+                        licenseKeyData = licenseKeyData,
                         subtitleUrl = subtitleUrl,
                         subtitleLanguage = subtitleLanguage
                     )
                     name = null
+                    headers = linkedMapOf()
+                    licenseUrl = null
+                    licenseKeyData = null
+                    licenseType = null
+                    manifestType = null
+                    licenseHeaders = linkedMapOf()
+                    subtitleUrl = null
+                    subtitleLanguage = null
                 }
             }
         }
