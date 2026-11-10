@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -56,9 +59,9 @@ class MainActivity:ComponentActivity(){
  LaunchedEffect(Unit){refresh()};DisposableEffect(Unit){onDispose{player.release()}}
  MaterialTheme(colorScheme=darkColorScheme(primary=androidx.compose.ui.graphics.Color(0xFF00DCCB),background=androidx.compose.ui.graphics.Color(0xFF080B16),surface=androidx.compose.ui.graphics.Color(0xFF111827))){
   Column(Modifier.fillMaxSize().padding(12.dp)){
-   Text("LiveTGTV",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.primary)
+   Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically){Image(painterResource(R.drawable.ic_livetgtv),contentDescription="LiveTGTV logo",modifier=Modifier.size(44.dp),contentScale=ContentScale.Fit);Spacer(Modifier.width(10.dp));Text("LiveTGTV",style=MaterialTheme.typography.headlineMedium,color=MaterialTheme.colorScheme.primary)}
    Text("LIVE CHANNELS",style=MaterialTheme.typography.labelSmall)
-   selected?.let{ch->AndroidView(Modifier.fillMaxWidth().aspectRatio(16f/9f),factory={ctx->PlayerView(ctx).apply{this.player=player;useController=true}},update{it.player=player});Text(ch.name,style=MaterialTheme.typography.titleMedium)}
+   selected?.let{ch->AndroidView(modifier=Modifier.fillMaxWidth().aspectRatio(16f/9f),factory={ctx->PlayerView(ctx).apply{this.player=player;useController=true}},update={it.player=player});Text(ch.name,style=MaterialTheme.typography.titleMedium)}
    OutlinedTextField(search,{search=it},Modifier.fillMaxWidth(),label={Text("Search channels")},singleLine=true)
    val groups=listOf("All Channels")+channels.map{it.group}.distinct().sorted()
    ScrollableTabRow(selectedTabIndex=groups.indexOf(category).coerceAtLeast(0),edgePadding=0.dp){groups.forEach{g->Tab(category==g,{category=g},text={Text(g)})}}
