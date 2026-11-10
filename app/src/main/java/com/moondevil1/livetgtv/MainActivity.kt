@@ -83,7 +83,7 @@ private fun LiveTvScreen() {
     val context = LocalContext.current
     val activity = context as? MainActivity
     val scope = rememberCoroutineScope()
-    val prefs = remember { context.getSharedPreferences("livetgtv_player", ComponentActivity.MODE_PRIVATE) }
+    val prefs = remember { context.getSharedPreferences("livetgtv_player", android.content.Context.MODE_PRIVATE) }
     var channels by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var selected by remember { mutableStateOf<Channel?>(null) }
     var search by remember { mutableStateOf("") }
@@ -296,7 +296,7 @@ private fun LiveTvScreen() {
                             useController = true
                             keepScreenOn = true
                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            showBuffering = PlayerView.SHOW_BUFFERING_WHEN_PLAYING
+                            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                         }
                     },
                     update = { it.player = player }
@@ -412,9 +412,7 @@ private fun showTrackDialog(
     selector: DefaultTrackSelector,
     trackType: Int
 ) {
-    TrackSelectionDialogBuilder(context, title, selector, trackType)
-        .setAllowAdaptiveSelections(trackType == C.TRACK_TYPE_VIDEO)
-        .setShowDisableOption(trackType == C.TRACK_TYPE_TEXT)
+    TrackSelectionDialogBuilder(context, title, selector.player, trackType)
         .build()
         .show()
 }
