@@ -49,7 +49,7 @@ object PlaylistParser {
 
             when {
                 line.startsWith("#EXTINF:") -> {
-                    val attrs = Regex("""([\\w-]+)="([^"]*)"""").findAll(line)
+                    val attrs = Regex("""([\w-]+)="([^"]*)"""").findAll(line)
                         .associate { it.groupValues[1] to decode(it.groupValues[2]) }
                     val comma = line.indexOf(',')
                     name = if (comma >= 0) line.substring(comma + 1).trim()
