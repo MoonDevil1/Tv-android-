@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom"
+    android:orientation="vertical"
+    android:background="#CC080B16"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
+        <ImageButton
+            android:id="@+id/exo_play"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Play"
+            android:src="@android:drawable/ic_media_play"
+            android:tint="#FFFFFF" />
+        <ImageButton
+            android:id="@+id/exo_pause"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Pause"
+            android:src="@android:drawable/ic_media_pause"
+            android:tint="#FFFFFF" />
+        <TextView
+            android:id="@+id/exo_position"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:text="0:00"
+            android:padding="4dp" />
+        <androidx.media3.ui.DefaultTimeBar
+            android:id="@+id/exo_progress"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1" />
+        <TextView
+            android:id="@+id/exo_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:text="0:00"
+            android:padding="4dp" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fillViewport="true"
+        android:scrollbars="none">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <Button android:id="@+id/ltv_previous" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Previous" />
+            <Button android:id="@+id/ltv_next" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Next" />
+            <Button android:id="@+id/ltv_channels" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Channels / Lists" />
+            <Button android:id="@+id/ltv_audio" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Audio" />
+            <Button android:id="@+id/ltv_quality" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Quality" />
+            <Button android:id="@+id/ltv_subtitles" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Subtitles" />
+            <Button android:id="@+id/ltv_fit" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Fit" />
+            <Button android:id="@+id/ltv_fullscreen" android:layout_width="wrap_content" android:layout_height="44dp" android:text="Full screen" />
+        </LinearLayout>
+    </HorizontalScrollView>
+</LinearLayout>
