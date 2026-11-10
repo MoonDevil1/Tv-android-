@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -33,6 +34,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -75,6 +79,49 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+}
+
+
+private fun buildClearKeyResponse(value: String): ByteArray {
+    var raw = value.trim().trim('"')
+    if (raw.startsWith("data:application/json;base64,", true)) {
+        raw = String(Base64.decode(raw.substringAfter(','), Base64.DEFAULT), Charsets.UTF_8)
+    }
+    if (raw.startsWith("{")) {
+        val json = org.json.JSONObject(raw)
+        if (json.has("keys")) return raw.toByteArray(Charsets.UTF_8)
+        val keys = org.json.JSONArray()
+        val iterator = json.keys()
+        while (iterator.hasNext()) {
+            val kid = iterator.next()
+            val key = json.optString(kid)
+            keys.put(org.json.JSONObject()
+                .put("kty", "oct")
+                .put("kid", hexToBase64Url(kid))
+                .put("k", hexToBase64Url(key)))
+        }
+        if (keys.length() == 0) throw IllegalArgumentException("ClearKey JSON contains no usable keys.")
+        return org.json.JSONObject().put("keys", keys).put("type", "temporary").toString().toByteArray(Charsets.UTF_8)
+    }
+    val entries = org.json.JSONArray()
+    raw.split(',').forEach { pair ->
+        val parts = pair.trim().split(':', limit = 2)
+        if (parts.size != 2) throw IllegalArgumentException("Invalid ClearKey value. Expected KID:KEY in hexadecimal.")
+        entries.put(org.json.JSONObject()
+            .put("kty", "oct")
+            .put("kid", hexToBase64Url(parts[0].trim()))
+            .put("k", hexToBase64Url(parts[1].trim())))
+    }
+    if (entries.length() == 0) throw IllegalArgumentException("No ClearKey key pairs were provided.")
+    return org.json.JSONObject().put("keys", entries).put("type", "temporary").toString().toByteArray(Charsets.UTF_8)
+}
+
+private fun hexToBase64Url(hex: String): String {
+    require(hex.length == 32 && hex.all { it.digitToIntOrNull(16) != null }) {
+        "ClearKey KID and KEY must each be 32 hexadecimal characters."
+    }
+    val bytes = ByteArray(16) { index -> hex.substring(index * 2, index * 2 + 2).toInt(16).toByte() }
+    return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 }
 
 @OptIn(UnstableApi::class)
@@ -180,8 +227,14 @@ private fun LiveTvScreen() {
             if (!channel.licenseUrl.isNullOrBlank() && drmUuid == null) {
                 throw IllegalArgumentException("Unsupported DRM license_type: ${channel.licenseType}")
             }
-            if (channel.licenseUrl.isNullOrBlank() && !channel.licenseType.isNullOrBlank()) {
-                throw IllegalArgumentException("The playlist declares DRM (${channel.licenseType}) but does not provide a license URL.")
+            val staticClearKey = if (drmUuid == CLEARKEY_UUID && !channel.licenseKeyData.isNullOrBlank()) {
+                buildClearKeyResponse(channel.licenseKeyData)
+            } else null
+            if (!channel.licenseType.isNullOrBlank() && channel.licenseUrl.isNullOrBlank() && staticClearKey == null) {
+                throw IllegalArgumentException(
+                    if (drmUuid == CLEARKEY_UUID) "The playlist declares ClearKey but contains no static KID:KEY/JWK data or license URL."
+                    else "The playlist declares DRM (${channel.licenseType}) but does not provide a license URL."
+                )
             }
 
             val item = MediaItem.Builder().setUri(channel.url).apply {
@@ -220,7 +273,14 @@ private fun LiveTvScreen() {
                 .setReadTimeoutMs(30000)
                 .setDefaultRequestProperties(channel.headers)
             player.stop()
-            player.setMediaSource(DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(item))
+            val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+            if (staticClearKey != null) {
+                val localDrmManager = DefaultDrmSessionManager.Builder()
+                    .setUuidAndExoMediaDrmProvider(CLEARKEY_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                    .build(LocalMediaDrmCallback(staticClearKey))
+                mediaSourceFactory.setDrmSessionManagerProvider { localDrmManager }
+            }
+            player.setMediaSource(mediaSourceFactory.createMediaSource(item))
             val resumeAt = prefs.getLong("position:${channel.url}", 0L)
             if (resumeAt > 5000L) player.seekTo(resumeAt)
             player.prepare()
