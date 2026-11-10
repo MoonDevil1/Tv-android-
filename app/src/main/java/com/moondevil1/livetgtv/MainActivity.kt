@@ -6,6 +6,9 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import android.util.Base64
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -449,6 +452,51 @@ private fun LiveTvScreen() {
                             nativeView.keepScreenOn = true
                             nativeView.resizeMode = resizeMode
                             nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                            nativeView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_content_frame)?.setOnTouchListener { target, event ->
+                                val detector = (target.getTag(R.id.player_gesture_detector) as? GestureDetector) ?: GestureDetector(
+                                    context,
+                                    object : GestureDetector.SimpleOnGestureListener() {
+                                        override fun onDown(e: MotionEvent) = true
+                                        override fun onDoubleTap(e: MotionEvent): Boolean {
+                                            when {
+                                                e.x < target.width * 0.35f -> player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                                                e.x > target.width * 0.65f -> player.seekTo(player.currentPosition + 10_000L)
+                                                else -> player.playWhenReady = !player.playWhenReady
+                                            }
+                                            return true
+                                        }
+                                        override fun onScroll(first: MotionEvent?, current: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+                                            val start = first ?: return false
+                                            if (kotlin.math.abs(distanceY) < kotlin.math.abs(distanceX)) return false
+                                            if (start.x < target.width / 2f) {
+                                                val attrs = activity?.window?.attributes ?: return false
+                                                val brightness = if (attrs.screenBrightness < 0f) 0.5f else attrs.screenBrightness
+                                                attrs.screenBrightness = (brightness - distanceY / target.height * 1.5f).coerceIn(0.02f, 1f)
+                                                activity.window.attributes = attrs
+                                                Toast.makeText(context, "Brightness " + (attrs.screenBrightness * 100).toInt() + "%", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                player.volume = (player.volume - distanceY / target.height * 1.5f).coerceIn(0f, 1f)
+                                                Toast.makeText(context, "Volume " + (player.volume * 100).toInt() + "%", Toast.LENGTH_SHORT).show()
+                                            }
+                                            return true
+                                        }
+                                    }
+                                ).apply { setOnDoubleTapListener(this) }.also { target.setTag(R.id.player_gesture_detector, it) }
+                                detector.onTouchEvent(event)
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_rewind).setOnClickListener {
+                                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_forward).setOnClickListener {
+                                player.seekTo(player.currentPosition + 10_000L)
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_mute).apply {
+                                text = if (player.volume == 0f) "Unmute" else "Mute"
+                                setOnClickListener {
+                                    player.volume = if (player.volume == 0f) 1f else 0f
+                                    text = if (player.volume == 0f) "Unmute" else "Mute"
+                                }
+                            }
                             host.findViewById<android.widget.Button>(R.id.ltv_previous).apply {
                                 isEnabled = previousChannel != null
                                 setOnClickListener { previousChannel?.let { play(it) } }
