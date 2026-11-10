@@ -5,6 +5,12 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 object PlaylistParser {
+    fun epgUrl(source: String): String? {
+        val header = source.removePrefix("\uFEFF").lineSequence().firstOrNull().orEmpty()
+        val match = Regex("""(?:x-tvg-url|url-tvg|tvg-url)\s*=\s*["\x27]([^"\x27]+)["\x27]""", RegexOption.IGNORE_CASE).find(header)
+        return match?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+    }
+
     fun parse(source: String): List<Channel> {
         val result = mutableListOf<Channel>()
         var name: String? = null
@@ -18,6 +24,7 @@ object PlaylistParser {
         var licenseHeaders = linkedMapOf<String, String>()
         var subtitleUrl: String? = null
         var subtitleLanguage: String? = null
+        var tvgId: String = ""
 
         fun decode(value: String) = value
             .replace("&amp;", "&")
@@ -57,6 +64,7 @@ object PlaylistParser {
                     else attrs["tvg-name"] ?: "Unknown channel"
                     logo = attrs["tvg-logo"].orEmpty()
                     group = attrs["group-title"] ?: "Other"
+                    tvgId = attrs["tvg-id"].orEmpty()
                 }
 
                 line.startsWith("#EXTVLCOPT:http-") -> {
@@ -116,7 +124,8 @@ object PlaylistParser {
                         licenseHeaders = licenseHeaders.toMap(),
                         licenseKeyData = licenseKeyData,
                         subtitleUrl = subtitleUrl,
-                        subtitleLanguage = subtitleLanguage
+                        subtitleLanguage = subtitleLanguage,
+                        tvgId = tvgId
                     )
                     name = null
                     headers = linkedMapOf()
@@ -127,6 +136,7 @@ object PlaylistParser {
                     licenseHeaders = linkedMapOf()
                     subtitleUrl = null
                     subtitleLanguage = null
+                    tvgId = ""
                 }
             }
         }
