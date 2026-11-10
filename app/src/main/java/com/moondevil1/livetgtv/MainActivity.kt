@@ -380,43 +380,57 @@ private fun LiveTvScreen() {
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { viewContext ->
-                            PlayerView(viewContext).apply {
-                                this.player = player
-                                useController = true
-                                keepScreenOn = true
-                                resizeMode = resizeMode
-                                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                            }
+                            android.view.LayoutInflater.from(viewContext)
+                                .inflate(R.layout.livetgtv_player_host, null, false) as android.widget.FrameLayout
                         },
-                        update = { it.player = player }
-                    )
-                    Row(
-                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                            .background(Color.Black.copy(alpha = 0.72f))
-                            .horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(enabled = previousChannel != null, onClick = { previousChannel?.let { play(it) } }) { Text("◀ Prev", color = Color.White) }
-                        TextButton(enabled = nextChannel != null, onClick = { nextChannel?.let { play(it) } }) { Text("Next ▶", color = Color.White) }
-                        TextButton(onClick = { showChannelDrawer = true }) { Text("☷ Channels", color = Color.White) }
-                        TextButton(onClick = { showAudioDialog = true }) { Text("Audio", color = Color.White) }
-                        TextButton(onClick = { showTrackDialog(context, "Video quality", player, C.TRACK_TYPE_VIDEO) }) { Text("Quality", color = Color.White) }
-                        TextButton(onClick = { showTrackDialog(context, "Subtitles", player, C.TRACK_TYPE_TEXT) }) { Text("Subtitles", color = Color.White) }
-                        TextButton(onClick = {
-                            resizeMode = when (resizeMode) {
-                                AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                                AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                                else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        update = { host ->
+                            val nativeView = host.findViewById<PlayerView>(R.id.livetgtv_player_view)
+                            nativeView.player = player
+                            nativeView.keepScreenOn = true
+                            nativeView.resizeMode = resizeMode
+                            nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                            host.findViewById<android.widget.Button>(R.id.ltv_previous).apply {
+                                isEnabled = previousChannel != null
+                                setOnClickListener { previousChannel?.let { play(it) } }
                             }
-                        }) { Text(when (resizeMode) {
-                            AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
-                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Zoom"
-                            else -> "Fit"
-                        }, color = Color.White) }
-                        TextButton(onClick = { isFullscreen = !isFullscreen }) {
-                            Text(if (isFullscreen) "Exit full" else "Full screen", color = Color.White)
+                            host.findViewById<android.widget.Button>(R.id.ltv_next).apply {
+                                isEnabled = nextChannel != null
+                                setOnClickListener { nextChannel?.let { play(it) } }
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_channels).setOnClickListener { showChannelDrawer = true }
+                            host.findViewById<android.widget.Button>(R.id.ltv_audio).setOnClickListener { showAudioDialog = true }
+                            host.findViewById<android.widget.Button>(R.id.ltv_quality).setOnClickListener {
+                                showTrackDialog(context, "Video quality", player, C.TRACK_TYPE_VIDEO)
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_subtitles).setOnClickListener {
+                                showTrackDialog(context, "Subtitles", player, C.TRACK_TYPE_TEXT)
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_fit).apply {
+                                text = when (resizeMode) {
+                                    AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
+                                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Zoom"
+                                    else -> "Fit"
+                                }
+                                setOnClickListener {
+                                    resizeMode = when (resizeMode) {
+                                        AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                        AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                    }
+                                    nativeView.resizeMode = resizeMode
+                                    text = when (resizeMode) {
+                                        AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
+                                        AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Zoom"
+                                        else -> "Fit"
+                                    }
+                                }
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_fullscreen).apply {
+                                text = if (isFullscreen) "Exit full screen" else "Full screen"
+                                setOnClickListener { isFullscreen = !isFullscreen }
+                            }
                         }
-                    }
+                    )
                 }
                 if (!isFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(channel.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -433,9 +447,6 @@ private fun LiveTvScreen() {
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    TextButton(onClick = { showTrackDialog(context, "Video quality", player, C.TRACK_TYPE_VIDEO) }) { Text("Quality") }
-                    TextButton(onClick = { showAudioDialog = true }) { Text("Audio") }
-                    TextButton(onClick = { showTrackDialog(context, "Subtitles", player, C.TRACK_TYPE_TEXT) }) { Text("Subtitles") }
                     TextButton(onClick = {
                         speed = when (speed) { 0.5f -> 0.75f; 0.75f -> 1f; 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 0.5f }
                         player.setPlaybackSpeed(speed)
