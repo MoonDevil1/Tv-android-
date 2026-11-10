@@ -11,8 +11,13 @@ Native Android app for phones and tablets. The Windows desktop application remai
 - Responsive Compose layout for phones and tablets
 - LiveTGTV launcher icon and dark theme
 
+## Download APK
+**[Download the latest Android APK](https://github.com/MoonDevil1/Tv-android-/releases/latest/download/app-debug.apk)**
+
+The APK is published automatically as a rolling GitHub Release after each successful build from `main`. You can also [view all releases](https://github.com/MoonDevil1/Tv-android-/releases).
+
 ## Build APK
-The **Android APK** GitHub Actions workflow builds a debug APK on every push to `main`. Download the `LiveTGTV-Android-APK` artifact from the latest successful workflow run.
+The **Android APK** GitHub Actions workflow builds a debug APK on every push to `main`. The workflow also keeps a temporary `LiveTGTV-Android-APK` artifact for 14 days.
 
 For local builds, install JDK 17 and Gradle 8.9, then run `gradle assembleDebug`. The APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
 
