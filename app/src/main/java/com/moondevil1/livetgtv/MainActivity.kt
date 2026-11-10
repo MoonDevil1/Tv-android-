@@ -437,6 +437,34 @@ private fun LiveTvScreen() {
                             host.findViewById<android.widget.Button>(R.id.ltv_subtitles).setOnClickListener {
                                 showTrackDialog(context, "Subtitles", player, C.TRACK_TYPE_TEXT)
                             }
+                            host.findViewById<android.widget.Button>(R.id.ltv_speed).apply {
+                                text = "Speed ${speed}×"
+                                setOnClickListener {
+                                    speed = when (speed) {
+                                        0.5f -> 0.75f
+                                        0.75f -> 1f
+                                        1f -> 1.25f
+                                        1.25f -> 1.5f
+                                        1.5f -> 2f
+                                        else -> 0.5f
+                                    }
+                                    player.setPlaybackSpeed(speed)
+                                    text = "Speed ${speed}×"
+                                }
+                            }
+                            host.findViewById<android.widget.Button>(R.id.ltv_pip).apply {
+                                isEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                    context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                                setOnClickListener {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        activity?.enterPictureInPictureMode(
+                                            PictureInPictureParams.Builder()
+                                                .setAspectRatio(Rational(16, 9))
+                                                .build()
+                                        )
+                                    }
+                                }
+                            }
                             host.findViewById<android.widget.Button>(R.id.ltv_fit).apply {
                                 text = when (resizeMode) {
                                     AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
@@ -477,28 +505,6 @@ private fun LiveTvScreen() {
                             prefs.edit().putStringSet("favorites", updated).apply()
                         }) {
                             Text(if (favorites.contains(channel.url)) "★" else "☆", color = Color(0xFFFBBF24), style = MaterialTheme.typography.headlineSmall)
-                        }
-                    }
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("Speed" to "${speed}x", "PiP" to "⧉").forEach { (label, value) ->
-                            Surface(
-                                color = Color(0xFF111827),
-                                shape = RoundedCornerShape(10.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263449)),
-                                modifier = Modifier.clickable {
-                                    if (label == "Speed") {
-                                        speed = when (speed) { 0.5f -> 0.75f; 0.75f -> 1f; 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 0.5f }
-                                        player.setPlaybackSpeed(speed)
-                                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        activity?.enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
-                                    }
-                                }
-                            ) {
-                                Text(if (label == "Speed") value else "⧉  Picture in picture", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFFCBD5E1), style = MaterialTheme.typography.labelMedium)
-                            }
                         }
                     }
                     playbackError?.let {
