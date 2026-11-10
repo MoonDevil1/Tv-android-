@@ -38,10 +38,10 @@ import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
 import androidx.media3.exoplayer.drm.FrameworkMediaDrm
 import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.TrackSelectionDialogBuilder
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -142,6 +142,7 @@ private fun LiveTvScreen() {
     var favorites by remember { mutableStateOf(prefs.getStringSet("favorites", emptySet()).orEmpty().toSet()) }
     var history by remember { mutableStateOf(prefs.getStringSet("history", emptySet()).orEmpty().toList()) }
     var speed by remember { mutableFloatStateOf(1f) }
+    var showAudioDialog by remember { mutableStateOf(false) }
 
     val trackSelector = remember { DefaultTrackSelector(context) }
     val player = remember {
@@ -377,7 +378,7 @@ private fun LiveTvScreen() {
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     TextButton(onClick = { showTrackDialog(context, "Video quality", player, C.TRACK_TYPE_VIDEO) }) { Text("Quality") }
-                    TextButton(onClick = { showTrackDialog(context, "Audio track", player, C.TRACK_TYPE_AUDIO) }) { Text("Audio") }
+                    TextButton(onClick = { showAudioDialog = true }) { Text("Audio") }
                     TextButton(onClick = { showTrackDialog(context, "Subtitles", player, C.TRACK_TYPE_TEXT) }) { Text("Subtitles") }
                     TextButton(onClick = {
                         speed = when (speed) { 0.5f -> 0.75f; 0.75f -> 1f; 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 0.5f }
@@ -394,6 +395,42 @@ private fun LiveTvScreen() {
                 playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
 
+            if (showAudioDialog) {
+                val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+                AlertDialog(
+                    onDismissRequest = { showAudioDialog = false },
+                    title = { Text("Audio track") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (audioGroups.isEmpty()) {
+                                Text("No selectable audio tracks are exposed by this stream.")
+                            } else {
+                                audioGroups.forEach { group ->
+                                    for (trackIndex in 0 until group.length) {
+                                        val format = group.getTrackFormat(trackIndex)
+                                        val language = format.language?.takeIf { it.isNotBlank() && it != "und" } ?: "Unknown language"
+                                        val label = format.label?.takeIf { it.isNotBlank() }
+                                        val detail = listOfNotNull(language, label, format.channelCount.takeIf { it > 0 }?.let { "${it}ch" }).distinct().joinToString(" · ")
+                                        val selectedTrack = group.isTrackSelected(trackIndex)
+                                        TextButton(
+                                            onClick = {
+                                                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                                    .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                                                    .addOverride(TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
+                                                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                                                    .build()
+                                                showAudioDialog = false
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) { Text((if (selectedTrack) "✓ " else "") + detail) }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { showAudioDialog = false }) { Text("Close") } }
+                )
+            }
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it },
@@ -463,16 +500,4 @@ private fun LiveTvScreen() {
             }
         }
     }
-}
-
-@OptIn(UnstableApi::class)
-private fun showTrackDialog(
-    context: android.content.Context,
-    title: String,
-    player: Player,
-    trackType: Int
-) {
-    TrackSelectionDialogBuilder(context, title, player, trackType)
-        .build()
-        .show()
 }
