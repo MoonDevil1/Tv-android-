@@ -7,7 +7,7 @@ import java.nio.charset.StandardCharsets
 object PlaylistParser {
     fun epgUrl(source: String): String? {
         val header = source.removePrefix("\uFEFF").lineSequence().firstOrNull().orEmpty()
-        val match = Regex("""(?:x-tvg-url|url-tvg|tvg-url)\s*=\s*["\x27]([^"\x27]+)["\x27]""", RegexOption.IGNORE_CASE).find(header)
+        val match = Regex("""(?:x-tvg-url|url-tvg|tvg-url)\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE).find(header)
         return match?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
     }
 
