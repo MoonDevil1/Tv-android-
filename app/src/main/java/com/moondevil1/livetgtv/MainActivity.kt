@@ -350,19 +350,46 @@ private fun LiveTvScreen() {
             }
 
             selected?.let { channel ->
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                    factory = { viewContext ->
-                        PlayerView(viewContext).apply {
-                            this.player = player
-                            useController = true
-                            keepScreenOn = true
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                        }
-                    },
-                    update = { it.player = player }
-                )
+                val currentQueueIndex = visibleChannels.indexOfFirst { it.url == channel.url }
+                val previousChannel = visibleChannels.getOrNull(currentQueueIndex - 1)
+                val nextChannel = when {
+                    currentQueueIndex >= 0 -> visibleChannels.getOrNull(currentQueueIndex + 1)
+                    else -> visibleChannels.firstOrNull()
+                }
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { viewContext ->
+                            PlayerView(viewContext).apply {
+                                this.player = player
+                                useController = true
+                                keepScreenOn = true
+                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                            }
+                        },
+                        update = { it.player = player }
+                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilledTonalButton(
+                            enabled = previousChannel != null,
+                            onClick = { previousChannel?.let { play(it) } }
+                        ) { Text("◀ Previous") }
+                        Text(
+                            if (mode == "Favorites") "Favorites queue" else "$mode queue",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        FilledTonalButton(
+                            enabled = nextChannel != null,
+                            onClick = { nextChannel?.let { play(it) } }
+                        ) { Text("Next ▶") }
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(channel.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     IconButton(onClick = {
