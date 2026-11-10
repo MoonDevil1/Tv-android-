@@ -57,6 +57,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Date
+import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.zip.GZIPInputStream
 import java.util.UUID
 
 private const val PLAYLIST_URL = "https://livetgtv.lovable.app/api/public/playlist.m3u"
@@ -150,6 +154,8 @@ private fun LiveTvScreen() {
     var favorites by remember { mutableStateOf(prefs.getStringSet("favorites", emptySet()).orEmpty().toSet()) }
     var history by remember { mutableStateOf(prefs.getStringSet("history", emptySet()).orEmpty().toList()) }
     var speed by remember { mutableFloatStateOf(1f) }
+    var epgPrograms by remember { mutableStateOf<List<EpgProgram>>(emptyList()) }
+    var clockNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showAudioDialog by remember { mutableStateOf(false) }
     var showChannelDrawer by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
@@ -208,6 +214,23 @@ private fun LiveTvScreen() {
                 }
             }
             channels = PlaylistParser.parse(text)
+            epgPrograms = emptyList()
+            val guideUrl = PlaylistParser.epgUrl(text)
+            if (guideUrl != null) {
+                runCatching {
+                    epgPrograms = withContext(Dispatchers.IO) {
+                        val guideConnection = URL(guideUrl).openConnection() as HttpURLConnection
+                        guideConnection.connectTimeout = 15000
+                        guideConnection.readTimeout = 30000
+                        guideConnection.setRequestProperty("User-Agent", "LiveTGTV-Android/1.1")
+                        try {
+                            val stream = if (guideUrl.substringBefore("?").endsWith(".gz", true)) GZIPInputStream(guideConnection.inputStream) else guideConnection.inputStream
+                            val xml = stream.bufferedReader().use { it.readText() }
+                            EpgParser.parse(xml)
+                        } finally { guideConnection.disconnect() }
+                    }
+                }
+            }
             if (channels.isEmpty()) error = "Playlist returned no channels."
             if (selected == null) {
                 val lastUrl = prefs.getString("last_channel", null)
@@ -316,7 +339,10 @@ private fun LiveTvScreen() {
         }
     }
 
-    LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(Unit) {
+        refresh()
+        while (true) { clockNow = System.currentTimeMillis(); delay(30_000) }
+    }
     LaunchedEffect(selected?.url) {
         while (selected != null) {
             val current = selected
@@ -505,6 +531,68 @@ private fun LiveTvScreen() {
                             prefs.edit().putStringSet("favorites", updated).apply()
                         }) {
                             Text(if (favorites.contains(channel.url)) "★" else "☆", color = Color(0xFFFBBF24), style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
+                    val channelGuide = remember(epgPrograms, channel.tvgId) {
+                        epgPrograms.filter { it.channelId == channel.tvgId }.sortedBy { it.start }
+                    }
+                    val nowProgram = channelGuide.firstOrNull { it.start <= clockNow && it.stop > clockNow }
+                    val nextProgram = channelGuide.firstOrNull { it.start > clockNow }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(0xFF101827),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263449))
+                    ) {
+                        if (nowProgram != null) {
+                            val progress = ((clockNow - nowProgram.start).toFloat() / (nowProgram.stop - nowProgram.start).toFloat()).coerceIn(0f, 1f)
+                            val remaining = ((nowProgram.stop - clockNow + 59_999L) / 60_000L).coerceAtLeast(0L)
+                            val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+                            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                AsyncImage(
+                                    model = nowProgram.image.ifBlank { channel.logo },
+                                    contentDescription = "Currently playing programme",
+                                    modifier = Modifier.size(76.dp, 88.dp),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(color = Color(0xFF083344), shape = RoundedCornerShape(5.dp)) {
+                                            Text("NOW PLAYING", Modifier.padding(horizontal = 7.dp, vertical = 3.dp), color = Color(0xFF67E8F9), style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        Spacer(Modifier.weight(1f))
+                                        Text("$remaining min left", color = Color(0xFF67E8F9), style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Text(nowProgram.title, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(timeFormat.format(Date(nowProgram.start)), color = Color(0xFF94A3B8), style = MaterialTheme.typography.labelSmall)
+                                        Text(timeFormat.format(Date(nowProgram.stop)), color = Color(0xFF94A3B8), style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Box(Modifier.fillMaxWidth().height(6.dp).background(Color(0xFF263449), RoundedCornerShape(50))) {
+                                        Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFF22D3EE), RoundedCornerShape(50)))
+                                    }
+                                    Text("${(progress * 100).toInt()}% watched", color = Color(0xFF94A3B8), style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                            nextProgram?.let { upcoming ->
+                                androidx.compose.material3.HorizontalDivider(color = Color(0xFF263449))
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("UP NEXT", color = Color(0xFF67E8F9), style = MaterialTheme.typography.labelSmall)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(upcoming.title, Modifier.weight(1f), color = Color.White, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                    Text(timeFormat.format(Date(upcoming.start)), color = Color(0xFF94A3B8), style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        } else {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("PROGRAMME GUIDE", color = Color(0xFF67E8F9), style = MaterialTheme.typography.labelSmall)
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    if (channel.tvgId.isBlank() || epgPrograms.isEmpty()) "Programme information unavailable" else "No programme scheduled right now",
+                                    color = Color(0xFF94A3B8),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                     }
                     playbackError?.let {
