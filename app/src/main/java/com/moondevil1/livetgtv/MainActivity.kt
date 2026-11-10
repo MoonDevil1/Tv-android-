@@ -42,6 +42,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.TrackSelectionDialogBuilder
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -500,4 +501,15 @@ private fun LiveTvScreen() {
             }
         }
     }
+}
+
+
+@OptIn(UnstableApi::class)
+private fun showTrackDialog(
+    context: android.content.Context,
+    title: String,
+    player: Player,
+    trackType: Int
+) {
+    TrackSelectionDialogBuilder(context, title, player, trackType).build().show()
 }
