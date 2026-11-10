@@ -316,9 +316,9 @@ private fun LiveTvScreen() {
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    TextButton(onClick = { showTrackDialog(context, "Video quality", trackSelector, C.TRACK_TYPE_VIDEO) }) { Text("Quality") }
-                    TextButton(onClick = { showTrackDialog(context, "Audio track", trackSelector, C.TRACK_TYPE_AUDIO) }) { Text("Audio") }
-                    TextButton(onClick = { showTrackDialog(context, "Subtitles", trackSelector, C.TRACK_TYPE_TEXT) }) { Text("Subtitles") }
+                    TextButton(onClick = { showTrackDialog(context, "Video quality", player, C.TRACK_TYPE_VIDEO) }) { Text("Quality") }
+                    TextButton(onClick = { showTrackDialog(context, "Audio track", player, C.TRACK_TYPE_AUDIO) }) { Text("Audio") }
+                    TextButton(onClick = { showTrackDialog(context, "Subtitles", player, C.TRACK_TYPE_TEXT) }) { Text("Subtitles") }
                     TextButton(onClick = {
                         speed = when (speed) { 0.5f -> 0.75f; 0.75f -> 1f; 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 0.5f }
                         player.setPlaybackSpeed(speed)
@@ -409,10 +409,10 @@ private fun LiveTvScreen() {
 private fun showTrackDialog(
     context: android.content.Context,
     title: String,
-    selector: DefaultTrackSelector,
+    player: Player,
     trackType: Int
 ) {
-    TrackSelectionDialogBuilder(context, title, selector.player, trackType)
+    TrackSelectionDialogBuilder(context, title, player, trackType)
         .build()
         .show()
 }
