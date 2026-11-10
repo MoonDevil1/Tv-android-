@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +27,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -144,6 +148,9 @@ private fun LiveTvScreen() {
     var history by remember { mutableStateOf(prefs.getStringSet("history", emptySet()).orEmpty().toList()) }
     var speed by remember { mutableFloatStateOf(1f) }
     var showAudioDialog by remember { mutableStateOf(false) }
+    var showChannelDrawer by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
+    var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
 
     val trackSelector = remember { DefaultTrackSelector(context) }
     val player = remember {
@@ -151,6 +158,18 @@ private fun LiveTvScreen() {
             .setTrackSelector(trackSelector)
             .build()
     }
+    SideEffect {
+        activity?.window?.let { window ->
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            if (isFullscreen) {
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
     val playerListener = remember {
         object : Player.Listener {
             override fun onPlayerError(exception: PlaybackException) {
@@ -331,10 +350,10 @@ private fun LiveTvScreen() {
         )
     ) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().then(if (isFullscreen) Modifier else Modifier.padding(horizontal = 12.dp, vertical = 8.dp)),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!isFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(R.drawable.ic_livetgtv),
                     contentDescription = "LiveTGTV",
@@ -356,7 +375,7 @@ private fun LiveTvScreen() {
                     currentQueueIndex >= 0 -> visibleChannels.getOrNull(currentQueueIndex + 1)
                     else -> visibleChannels.firstOrNull()
                 }
-                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                Box(Modifier.fillMaxWidth().then(if (isFullscreen) Modifier.weight(1f) else Modifier.aspectRatio(16f / 9f))) {
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { viewContext ->
@@ -364,33 +383,41 @@ private fun LiveTvScreen() {
                                 this.player = player
                                 useController = true
                                 keepScreenOn = true
-                                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                resizeMode = resizeMode
                                 setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                             }
                         },
                         update = { it.player = player }
                     )
                     Row(
-                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                            .background(Color.Black.copy(alpha = 0.72f))
+                            .horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        FilledTonalButton(
-                            enabled = previousChannel != null,
-                            onClick = { previousChannel?.let { play(it) } }
-                        ) { Text("◀ Previous") }
-                        Text(
-                            if (mode == "Favorites") "Favorites queue" else "$mode queue",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                        FilledTonalButton(
-                            enabled = nextChannel != null,
-                            onClick = { nextChannel?.let { play(it) } }
-                        ) { Text("Next ▶") }
+                        TextButton(enabled = previousChannel != null, onClick = { previousChannel?.let { play(it) } }) { Text("◀ Prev", color = Color.White) }
+                        TextButton(enabled = nextChannel != null, onClick = { nextChannel?.let { play(it) } }) { Text("Next ▶", color = Color.White) }
+                        TextButton(onClick = { showChannelDrawer = true }) { Text("☷ Channels", color = Color.White) }
+                        TextButton(onClick = { showAudioDialog = true }) { Text("Audio", color = Color.White) }
+                        TextButton(onClick = { showTrackDialog(context, "Video quality", player, C.TRACK_TYPE_VIDEO) }) { Text("Quality", color = Color.White) }
+                        TextButton(onClick = { showTrackDialog(context, "Subtitles", player, C.TRACK_TYPE_TEXT) }) { Text("Subtitles", color = Color.White) }
+                        TextButton(onClick = {
+                            resizeMode = when (resizeMode) {
+                                AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            }
+                        }) { Text(when (resizeMode) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Fill"
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Zoom"
+                            else -> "Fit"
+                        }, color = Color.White) }
+                        TextButton(onClick = { isFullscreen = !isFullscreen }) {
+                            Text(if (isFullscreen) "Exit full" else "Full screen", color = Color.White)
+                        }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!isFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(channel.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     IconButton(onClick = {
                         val updated = favorites.toMutableSet()
@@ -401,7 +428,7 @@ private fun LiveTvScreen() {
                         Text(if (favorites.contains(channel.url)) "★" else "☆", color = MaterialTheme.colorScheme.primary)
                     }
                 }
-                Row(
+                if (!isFullscreen) Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -420,9 +447,10 @@ private fun LiveTvScreen() {
                         }
                     }) { Text("PiP") }
                 }
-                playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                if (!isFullscreen) playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
 
+            if (!isFullscreen) {
             if (showAudioDialog) {
                 val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
                 AlertDialog(
@@ -522,6 +550,52 @@ private fun LiveTvScreen() {
                                 )
                             }
                             if (favorites.contains(channel.url)) Text("★", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+            }
+        }
+    }
+
+    if (showChannelDrawer) {
+        Dialog(onDismissRequest = { showChannelDrawer = false }) {
+            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+                Column(Modifier.fillMaxWidth().heightIn(max = 680.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Channel playlists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { showChannelDrawer = false }) { Text("Close") }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Channels", "Favorites", "History").forEach { item ->
+                            FilterChip(selected = mode == item, onClick = { mode = item; category = "All" }, label = { Text(item) })
+                        }
+                    }
+                    OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Search in playlist") }, singleLine = true)
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (listOf("All") + channels.map { it.group }.distinct().sorted()).forEach { group ->
+                            FilterChip(selected = category == group, onClick = { category = group }, label = { Text(group) })
+                        }
+                    }
+                    Text("${visibleChannels.size} ${mode.lowercase()}", style = MaterialTheme.typography.labelMedium)
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        items(visibleChannels, key = { it.url }) { item ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clickable { play(item); showChannelDrawer = false },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (selected?.url == item.url) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (item.logo.isNotBlank()) AsyncImage(model = item.logo, contentDescription = null, modifier = Modifier.size(54.dp, 38.dp), contentScale = ContentScale.Fit)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(item.name, style = MaterialTheme.typography.bodyMedium)
+                                        Text(item.group, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    if (favorites.contains(item.url)) Text("★", color = MaterialTheme.colorScheme.primary)
+                                    if (selected?.url == item.url) Text("PLAYING", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
                         }
                     }
                 }
