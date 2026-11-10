@@ -453,9 +453,8 @@ private fun LiveTvScreen() {
                             nativeView.resizeMode = resizeMode
                             nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                             nativeView.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_content_frame)?.setOnTouchListener { target, event ->
-                                val detector = (target.tag as? GestureDetector) ?: GestureDetector(
-                                    context,
-                                    object : GestureDetector.SimpleOnGestureListener() {
+                                val detector = (target.tag as? GestureDetector) ?: run {
+                                    val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
                                         override fun onDown(e: MotionEvent) = true
                                         override fun onDoubleTap(e: MotionEvent): Boolean {
                                             when {
@@ -482,7 +481,10 @@ private fun LiveTvScreen() {
                                             return true
                                         }
                                     }
-                                ).apply { setOnDoubleTapListener(this) }.also { target.tag = it }
+                                    GestureDetector(context, gestureListener).apply {
+                                        setOnDoubleTapListener(gestureListener)
+                                    }.also { target.tag = it }
+                                }
                                 detector.onTouchEvent(event)
                             }
                             host.findViewById<android.widget.Button>(R.id.ltv_rewind).setOnClickListener {
