@@ -157,6 +157,8 @@ private fun LiveTvScreen() {
     var epgPrograms by remember { mutableStateOf<List<EpgProgram>>(emptyList()) }
     var clockNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var showAudioDialog by remember { mutableStateOf(false) }
+    var showEpgDialog by remember { mutableStateOf(false) }
+    var epgUrlInput by remember { mutableStateOf(prefs.getString("epg_url", "").orEmpty()) }
     var showChannelDrawer by remember { mutableStateOf(false) }
     var isFullscreen by remember { mutableStateOf(false) }
     var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
@@ -215,7 +217,7 @@ private fun LiveTvScreen() {
             }
             channels = PlaylistParser.parse(text)
             epgPrograms = emptyList()
-            val guideUrl = PlaylistParser.epgUrl(text)
+            val guideUrl = prefs.getString("epg_url", null)?.takeIf { it.isNotBlank() } ?: PlaylistParser.epgUrl(text)
             if (guideUrl != null) {
                 runCatching {
                     epgPrograms = withContext(Dispatchers.IO) {
@@ -592,6 +594,8 @@ private fun LiveTvScreen() {
                                     color = Color(0xFF94A3B8),
                                     style = MaterialTheme.typography.bodySmall
                                 )
+                                Spacer(Modifier.weight(1f))
+                                TextButton(onClick = { epgUrlInput = prefs.getString("epg_url", "").orEmpty(); showEpgDialog = true }) { Text("Set EPG", color = Color(0xFF67E8F9)) }
                             }
                         }
                     }
@@ -827,6 +831,30 @@ private fun LiveTvScreen() {
                 }
             }
         }
+    }
+
+    if (showEpgDialog) {
+        AlertDialog(
+            onDismissRequest = { showEpgDialog = false },
+            title = { Text("Programme guide (XMLTV)") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter the XMLTV guide URL supplied with your playlist. The channel tvg-id must match the guide channel ID.")
+                    OutlinedTextField(value = epgUrlInput, onValueChange = { epgUrlInput = it }, modifier = Modifier.fillMaxWidth(), label = { Text("EPG URL (.xml or .xml.gz)") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val value = epgUrlInput.trim()
+                    if (value.isBlank() || value.startsWith("https://") || value.startsWith("http://")) {
+                        prefs.edit().putString("epg_url", value).apply()
+                        showEpgDialog = false
+                        scope.launch { refresh() }
+                    }
+                }) { Text("Save and refresh") }
+            },
+            dismissButton = { TextButton(onClick = { showEpgDialog = false }) { Text("Cancel") } }
+        )
     }
 
     if (showChannelDrawer) {
