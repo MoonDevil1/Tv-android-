@@ -451,7 +451,8 @@ private fun LiveTvScreen() {
                             nativeView.player = player
                             nativeView.keepScreenOn = true
                             nativeView.resizeMode = resizeMode
-                            nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)                            host.findViewById<android.widget.TextView>(R.id.ltv_channel_name).text = channel.name
+                            nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                            host.findViewById<android.widget.TextView>(R.id.ltv_channel_name).text = channel.name
                             host.findViewById<android.widget.TextView>(R.id.ltv_channel_group).text = channel.group.ifBlank { "Live television" }
                             val nowProgram = epgPrograms.firstOrNull { it.channelId == channel.tvgId && it.start <= clockNow && it.stop > clockNow }
                             host.findViewById<android.widget.TextView>(R.id.ltv_program_title).text = nowProgram?.title ?: "Live broadcast"
