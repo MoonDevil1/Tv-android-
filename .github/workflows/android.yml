@@ -3,9 +3,15 @@ run-name: LiveTGTV Android build
 on:
   push:
     branches: [main, 'feature/full-media-player']
-    paths-ignore:
-      - 'preview/**'
-      - '.github/workflows/player-preview.yml'
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'settings.gradle*'
+      - 'build.gradle*'
+      - '.github/workflows/android.yml'
   pull_request:
     branches: [main]
   workflow_dispatch:
