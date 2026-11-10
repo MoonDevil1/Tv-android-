@@ -1,7 +1,17 @@
 name: Android APK
+run-name: LiveTGTV Android build
 on:
   push:
-    branches: [main]
+    branches: [main, 'feature/full-media-player']
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'settings.gradle*'
+      - 'build.gradle*'
+      - '.github/workflows/android.yml'
   pull_request:
     branches: [main]
   workflow_dispatch:
