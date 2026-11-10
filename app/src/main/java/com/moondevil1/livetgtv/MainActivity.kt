@@ -1,32 +1,47 @@
 package com.moondevil1.livetgtv
 
+import android.app.PictureInPictureParams
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.drm.UnsupportedDrmException
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.TrackSelectionDialogBuilder
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -35,12 +50,31 @@ import java.util.UUID
 
 private const val PLAYLIST_URL = "https://livetgtv.lovable.app/api/public/playlist.m3u"
 private val WIDEVINE_UUID = UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
+private val CLEARKEY_UUID = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+private val PLAYREADY_UUID = UUID.fromString("9a04f079-9840-4286-ab92-e65be0885f95")
 
 class MainActivity : ComponentActivity() {
     @OptIn(UnstableApi::class)
+    var pipPlayer: ExoPlayer? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { LiveTvScreen() }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val activePlayer = pipPlayer
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            activePlayer?.isPlaying == true &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) {
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+            )
+        }
     }
 }
 
@@ -48,20 +82,40 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun LiveTvScreen() {
     val context = LocalContext.current
+    val activity = context as? MainActivity
     val scope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences("livetgtv_player", ComponentActivity.MODE_PRIVATE) }
     var channels by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var selected by remember { mutableStateOf<Channel?>(null) }
     var search by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("All Channels") }
+    var category by remember { mutableStateOf("All") }
+    var mode by remember { mutableStateOf("Channels") }
     var error by remember { mutableStateOf<String?>(null) }
     var playbackError by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
-    val player = remember { ExoPlayer.Builder(context).build() }
+    var favorites by remember { mutableStateOf(prefs.getStringSet("favorites", emptySet()).orEmpty().toSet()) }
+    var history by remember { mutableStateOf(prefs.getStringSet("history", emptySet()).orEmpty().toList()) }
+    var speed by remember { mutableFloatStateOf(1f) }
+
+    val trackSelector = remember { DefaultTrackSelector(context) }
+    val player = remember {
+        ExoPlayer.Builder(context)
+            .setTrackSelector(trackSelector)
+            .build()
+    }
     val playerListener = remember {
         object : Player.Listener {
             override fun onPlayerError(exception: PlaybackException) {
-                playbackError = "Playback failed (${exception.errorCodeName}): ${exception.message ?: "The stream could not be opened."}"
+                val detail = exception.cause?.message ?: exception.message ?: "The stream could not be opened."
+                playbackError = when (exception.errorCode) {
+                    PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ->
+                        "DRM license request failed. Check the playlist license URL, license headers, account authorization and provider availability. Details: $detail"
+                    PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR ->
+                        "This device could not initialize the required DRM system. Details: $detail"
+                    else -> "Playback failed (${exception.errorCodeName}): $detail"
+                }
             }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) playbackError = null
             }
@@ -76,6 +130,7 @@ private fun LiveTvScreen() {
                 val connection = URL(PLAYLIST_URL).openConnection() as HttpURLConnection
                 connection.connectTimeout = 15000
                 connection.readTimeout = 20000
+                connection.setRequestProperty("User-Agent", "LiveTGTV-Android/1.1")
                 try {
                     connection.inputStream.bufferedReader().use { it.readText() }
                 } finally {
@@ -84,6 +139,10 @@ private fun LiveTvScreen() {
             }
             channels = PlaylistParser.parse(text)
             if (channels.isEmpty()) error = "Playlist returned no channels."
+            if (selected == null) {
+                val lastUrl = prefs.getString("last_channel", null)
+                selected = channels.firstOrNull { it.url == lastUrl }
+            }
         } catch (exception: Exception) {
             error = exception.message ?: "Could not load playlist."
         } finally {
@@ -95,85 +154,185 @@ private fun LiveTvScreen() {
         selected = channel
         error = null
         playbackError = null
+        prefs.edit().putString("last_channel", channel.url).apply()
+        history = (listOf(channel.url) + history.filterNot { it == channel.url }).take(80)
+        prefs.edit().putStringSet("history", history.toSet()).apply()
         try {
-            val streamUrl = channel.url.lowercase()
+            val streamUrl = channel.url.substringBefore('?').lowercase()
             val mimeType = when {
                 channel.manifestType?.contains("mpd", true) == true ||
                     channel.manifestType?.contains("dash", true) == true ||
-                    streamUrl.substringBefore('?').endsWith(".mpd") -> MimeTypes.APPLICATION_MPD
+                    streamUrl.endsWith(".mpd") -> MimeTypes.APPLICATION_MPD
                 channel.manifestType?.contains("hls", true) == true ||
-                    streamUrl.substringBefore('?').endsWith(".m3u8") -> MimeTypes.APPLICATION_M3U8
+                    streamUrl.endsWith(".m3u8") -> MimeTypes.APPLICATION_M3U8
+                channel.manifestType?.contains("smooth", true) == true ||
+                    channel.manifestType?.contains("ss", true) == true ||
+                    streamUrl.endsWith(".ism/manifest") -> MimeTypes.APPLICATION_SS
                 else -> null
             }
-            val mediaItem = MediaItem.Builder().setUri(channel.url).apply {
+
+            val drmUuid = when (channel.licenseType?.lowercase()?.substringBefore(';')?.trim()) {
+                "com.widevine.alpha", "widevine", "widevine drm" -> WIDEVINE_UUID
+                "clearkey", "org.w3.clearkey", "com.w3.clearkey" -> CLEARKEY_UUID
+                "com.microsoft.playready", "playready" -> PLAYREADY_UUID
+                null, "" -> WIDEVINE_UUID.takeIf { !channel.licenseUrl.isNullOrBlank() }
+                else -> null
+            }
+            if (!channel.licenseUrl.isNullOrBlank() && drmUuid == null) {
+                throw IllegalArgumentException("Unsupported DRM license_type: ${channel.licenseType}")
+            }
+            if (channel.licenseUrl.isNullOrBlank() && !channel.licenseType.isNullOrBlank()) {
+                throw IllegalArgumentException("The playlist declares DRM (${channel.licenseType}) but does not provide a license URL.")
+            }
+
+            val item = MediaItem.Builder().setUri(channel.url).apply {
                 if (mimeType != null) setMimeType(mimeType)
-                if (!channel.licenseUrl.isNullOrBlank()) {
+                if (channel.subtitleUrl?.isNotBlank() == true) {
+                    val subtitleMime = when (channel.subtitleUrl.substringBefore('?').substringAfterLast('.', "").lowercase()) {
+                        "srt" -> MimeTypes.APPLICATION_SUBRIP
+                        "vtt" -> MimeTypes.TEXT_VTT
+                        "ass", "ssa" -> MimeTypes.TEXT_SSA
+                        "ttml", "xml" -> MimeTypes.APPLICATION_TTML
+                        else -> MimeTypes.TEXT_VTT
+                    }
+                    setSubtitleConfigurations(
+                        listOf(
+                            MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(channel.subtitleUrl))
+                                .setMimeType(subtitleMime)
+                                .setLanguage(channel.subtitleLanguage ?: "und")
+                                .build()
+                        )
+                    )
+                }
+                if (!channel.licenseUrl.isNullOrBlank() && drmUuid != null) {
                     setDrmConfiguration(
-                        MediaItem.DrmConfiguration.Builder(WIDEVINE_UUID)
+                        MediaItem.DrmConfiguration.Builder(drmUuid)
                             .setLicenseUri(channel.licenseUrl!!)
-                            .setLicenseRequestHeaders(channel.headers)
+                            .setLicenseRequestHeaders(channel.licenseHeaders.ifEmpty { channel.headers })
+                            .setMultiSession(true)
                             .build()
                     )
                 }
             }.build()
+
             val dataSourceFactory = DefaultHttpDataSource.Factory()
                 .setAllowCrossProtocolRedirects(true)
+                .setConnectTimeoutMs(15000)
+                .setReadTimeoutMs(30000)
                 .setDefaultRequestProperties(channel.headers)
             player.stop()
-            player.setMediaSource(DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem))
+            player.setMediaSource(DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(item))
+            val resumeAt = prefs.getLong("position:${channel.url}", 0L)
+            if (resumeAt > 5000L) player.seekTo(resumeAt)
             player.prepare()
             player.playWhenReady = true
+            speed = 1f
+            player.setPlaybackSpeed(1f)
         } catch (exception: Exception) {
             playbackError = exception.message ?: "Playback could not start."
         }
     }
 
     LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(selected?.url) {
+        while (selected != null) {
+            val current = selected
+            if (current != null && player.currentPosition > 0L) {
+                prefs.edit().putLong("position:${current.url}", player.currentPosition).apply()
+            }
+            delay(5000)
+        }
+    }
     DisposableEffect(player, playerListener) {
+        activity?.pipPlayer = player
         player.addListener(playerListener)
         onDispose {
+            activity?.pipPlayer = null
             player.removeListener(playerListener)
             player.release()
         }
     }
 
+    val visibleChannels = when (mode) {
+        "Favorites" -> channels.filter { favorites.contains(it.url) }
+        "History" -> history.mapNotNull { url -> channels.firstOrNull { it.url == url } }
+        else -> channels
+    }.filter {
+        (category == "All" || it.group == category) &&
+            (search.isBlank() || it.name.contains(search, true) || it.group.contains(search, true))
+    }
+
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = androidx.compose.ui.graphics.Color(0xFF00DCCB),
-            background = androidx.compose.ui.graphics.Color(0xFF080B16),
-            surface = androidx.compose.ui.graphics.Color(0xFF111827)
+            primary = Color(0xFF00DCCB),
+            background = Color(0xFF080B16),
+            surface = Color(0xFF111827)
         )
     ) {
-        Column(Modifier.fillMaxSize().padding(12.dp)) {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(R.drawable.ic_livetgtv),
-                    contentDescription = "LiveTGTV app logo",
-                    modifier = Modifier.size(48.dp),
+                    contentDescription = "LiveTGTV",
+                    modifier = Modifier.size(44.dp),
                     contentScale = ContentScale.Fit
                 )
                 Spacer(Modifier.width(10.dp))
-                Text(
-                    "LiveTGTV",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Column(Modifier.weight(1f)) {
+                    Text("LiveTGTV", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                    Text("LIVE CHANNELS", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = { scope.launch { refresh() } }) { Text("Refresh") }
             }
-            Text("LIVE CHANNELS", style = MaterialTheme.typography.labelSmall)
 
             selected?.let { channel ->
                 AndroidView(
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                     factory = { viewContext ->
                         PlayerView(viewContext).apply {
-                            this.player = player
+                            player = this@let.player
                             useController = true
                             keepScreenOn = true
+                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            showBuffering = PlayerView.SHOW_BUFFERING_WHEN_PLAYING
                         }
                     },
                     update = { it.player = player }
                 )
-                Text(channel.name, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(channel.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    IconButton(onClick = {
+                        val updated = favorites.toMutableSet()
+                        if (!updated.add(channel.url)) updated.remove(channel.url)
+                        favorites = updated
+                        prefs.edit().putStringSet("favorites", updated).apply()
+                    }) {
+                        Text(if (favorites.contains(channel.url)) "★" else "☆", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextButton(onClick = { showTrackDialog(context, "Video quality", trackSelector, C.TRACK_TYPE_VIDEO) }) { Text("Quality") }
+                    TextButton(onClick = { showTrackDialog(context, "Audio track", trackSelector, C.TRACK_TYPE_AUDIO) }) { Text("Audio") }
+                    TextButton(onClick = { showTrackDialog(context, "Subtitles", trackSelector, C.TRACK_TYPE_TEXT) }) { Text("Subtitles") }
+                    TextButton(onClick = {
+                        speed = when (speed) { 0.5f -> 0.75f; 0.75f -> 1f; 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 0.5f }
+                        player.setPlaybackSpeed(speed)
+                    }) { Text("${speed}x") }
+                    TextButton(onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            activity?.enterPictureInPictureMode(
+                                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
+                            )
+                        }
+                    }) { Text("PiP") }
+                }
+                playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
 
             OutlinedTextField(
@@ -183,54 +342,80 @@ private fun LiveTvScreen() {
                 label = { Text("Search channels") },
                 singleLine = true
             )
-            val groups = listOf("All Channels") + channels.map { it.group }.distinct().sorted()
-            ScrollableTabRow(
-                selectedTabIndex = groups.indexOf(category).coerceAtLeast(0),
-                edgePadding = 0.dp
-            ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Channels", "Favorites", "History").forEach { item ->
+                    FilterChip(selected = mode == item, onClick = { mode = item; category = "All" }, label = { Text(item) })
+                }
+            }
+            val groups = listOf("All") + channels.map { it.group }.distinct().sorted()
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 groups.forEach { group ->
-                    Tab(selected = category == group, onClick = { category = group }, text = { Text(group) })
+                    FilterChip(selected = category == group, onClick = { category = group }, label = { Text(group) })
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${channels.size} channels")
-                TextButton(onClick = { scope.launch { refresh() } }) { Text("Refresh") }
+                Text("${visibleChannels.size} channels", style = MaterialTheme.typography.labelMedium)
+                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             }
-            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-            LazyColumn(Modifier.weight(1f)) {
-                items(channels.filter {
-                    (category == "All Channels" || it.group == category) && it.name.contains(search, true)
-                }) { channel ->
-                    ListItem(
-                        leadingContent = {
+            if (mode == "Favorites" && visibleChannels.isEmpty()) {
+                Text("No favorites yet. Tap ☆ beside a channel to save it.")
+            } else if (mode == "History" && visibleChannels.isEmpty()) {
+                Text("Recently played channels will appear here.")
+            }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                items(visibleChannels, key = { it.url }) { channel ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { play(channel) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (selected?.url == channel.url) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             if (channel.logo.isNotBlank()) {
                                 AsyncImage(
                                     model = channel.logo,
                                     contentDescription = "${channel.name} logo",
-                                    modifier = Modifier.size(width = 76.dp, height = 48.dp),
+                                    modifier = Modifier.size(width = 72.dp, height = 46.dp),
                                     contentScale = ContentScale.Fit
                                 )
                             } else {
                                 Image(
                                     painter = painterResource(R.drawable.ic_livetgtv),
-                                    contentDescription = "Channel logo unavailable",
-                                    modifier = Modifier.size(44.dp),
-                                    contentScale = ContentScale.Fit
+                                    contentDescription = null,
+                                    modifier = Modifier.size(44.dp)
                                 )
                             }
-                        },
-                        headlineContent = { Text(channel.name) },
-                        supportingContent = {
-                            Text(channel.group + if (channel.licenseUrl != null) " · DRM" else "")
-                        },
-                        modifier = Modifier.fillMaxWidth().clickable { play(channel) }
-                    )
-                    HorizontalDivider()
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(channel.name, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    channel.group + if (!channel.licenseUrl.isNullOrBlank()) " · DRM" else "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (favorites.contains(channel.url)) Text("★", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@OptIn(UnstableApi::class)
+private fun showTrackDialog(
+    context: android.content.Context,
+    title: String,
+    selector: DefaultTrackSelector,
+    trackType: Int
+) {
+    TrackSelectionDialogBuilder(context, title, selector, trackType)
+        .setAllowAdaptiveSelections(trackType == C.TRACK_TYPE_VIDEO)
+        .setShowDisableOption(trackType == C.TRACK_TYPE_TEXT)
+        .build()
+        .show()
 }
