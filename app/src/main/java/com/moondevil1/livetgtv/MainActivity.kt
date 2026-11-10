@@ -15,6 +15,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +49,8 @@ class MainActivity:ComponentActivity(){
    val mediaItem=MediaItem.Builder().setUri(channel.url).apply{
     if(!channel.licenseUrl.isNullOrBlank())setDrmConfiguration(MediaItem.DrmConfiguration.Builder(WIDEVINE_UUID).setLicenseUri(channel.licenseUrl!!).setLicenseRequestHeaders(channel.headers).build())
    }.build()
-   player.setMediaItem(mediaItem);player.prepare();player.playWhenReady=true;error=null
+   val dataSourceFactory=DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setDefaultRequestProperties(channel.headers)
+   player.setMediaSource(DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(mediaItem));player.prepare();player.playWhenReady=true;error=null
   }catch(e:Exception){error=e.message?:"Playback could not start."}
  }
  LaunchedEffect(Unit){refresh()};DisposableEffect(Unit){onDispose{player.release()}}
