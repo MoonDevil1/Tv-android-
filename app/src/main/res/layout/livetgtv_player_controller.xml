@@ -119,15 +119,14 @@
             android:tint="#FFFFFF" />
 
         <ImageButton
-            android:id="@+id/exo_rew"
+            android:id="@+id/ltv_rewind"
             android:layout_width="42dp"
             android:layout_height="42dp"
             android:layout_marginStart="12dp"
             android:background="@drawable/ltv_controller_round_button"
-            android:contentDescription="Rewind"
+            android:contentDescription="Rewind 10 seconds"
             android:src="@android:drawable/ic_media_rew"
-            android:tint="#FFFFFF"
-            android:visibility="gone" />
+            android:tint="#FFFFFF" />
 
         <ImageButton
             android:id="@+id/exo_play"
@@ -148,6 +147,16 @@
             android:contentDescription="Pause"
             android:src="@android:drawable/ic_media_pause"
             android:tint="#07131D" />
+
+        <ImageButton
+            android:id="@+id/ltv_forward"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/ltv_controller_round_button"
+            android:contentDescription="Forward 10 seconds"
+            android:src="@android:drawable/ic_media_ff"
+            android:tint="#FFFFFF" />
 
         <ImageButton
             android:id="@+id/ltv_next"
