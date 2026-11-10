@@ -10,6 +10,7 @@ data class Channel(
     val licenseType: String? = null,
     val manifestType: String? = null,
     val licenseHeaders: Map<String, String> = emptyMap(),
+    val licenseKeyData: String? = null,
     val subtitleUrl: String? = null,
     val subtitleLanguage: String? = null
 )
