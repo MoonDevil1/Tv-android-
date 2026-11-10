@@ -507,10 +507,10 @@ private fun LiveTvScreen() {
                                 }
                                 detector.onTouchEvent(event)
                             }
-                            host.findViewById<android.widget.Button>(R.id.ltv_rewind).setOnClickListener {
+                            host.findViewById<android.widget.ImageButton>(R.id.ltv_rewind).setOnClickListener {
                                 player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
                             }
-                            host.findViewById<android.widget.Button>(R.id.ltv_forward).setOnClickListener {
+                            host.findViewById<android.widget.ImageButton>(R.id.ltv_forward).setOnClickListener {
                                 player.seekTo(player.currentPosition + 10_000L)
                             }
                             host.findViewById<android.widget.Button>(R.id.ltv_mute).apply {
