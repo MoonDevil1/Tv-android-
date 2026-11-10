@@ -453,8 +453,18 @@ private fun LiveTvScreen() {
                             nativeView.resizeMode = resizeMode
                             nativeView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)                            host.findViewById<android.widget.TextView>(R.id.ltv_channel_name).text = channel.name
                             host.findViewById<android.widget.TextView>(R.id.ltv_channel_group).text = channel.group.ifBlank { "Live television" }
-                            host.findViewById<android.widget.TextView>(R.id.ltv_program_title).text = "LIVE  ·  ${channel.name}"
-                            host.findViewById<android.widget.TextView>(R.id.ltv_program_time).text = "ON AIR"
+                            val nowProgram = epgPrograms.firstOrNull { it.channelId == channel.tvgId && it.start <= clockNow && it.stop > clockNow }
+                            host.findViewById<android.widget.TextView>(R.id.ltv_program_title).text = nowProgram?.title ?: "Live broadcast"
+                            host.findViewById<android.widget.TextView>(R.id.ltv_program_time).text = nowProgram?.let {
+                                val remaining = ((it.stop - clockNow + 59_999L) / 60_000L).coerceAtLeast(0L)
+                                "$remaining min left"
+                            } ?: "ON AIR"
+                            host.findViewById<android.view.View>(R.id.ltv_epg_progress).let { bar ->
+                                val progress = nowProgram?.let { ((clockNow - it.start).toFloat() / (it.stop - it.start).toFloat()).coerceIn(0f, 1f) } ?: 0f
+                                bar.scaleX = progress.coerceAtLeast(0.01f)
+                                bar.pivotX = 0f
+                                bar.setBackgroundColor(android.graphics.Color.rgb(34, 211, 238))
+                            }
                             host.findViewById<android.widget.ImageView>(R.id.ltv_channel_logo).let { logo ->
                                 logo.visibility = if (channel.logo.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
                                 if (channel.logo.isNotBlank()) coil.ImageLoader(context).enqueue(
