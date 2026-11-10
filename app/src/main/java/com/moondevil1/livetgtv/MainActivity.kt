@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -345,28 +346,58 @@ private fun LiveTvScreen() {
 
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = Color(0xFF00DCCB),
-            background = Color(0xFF080B16),
-            surface = Color(0xFF111827)
+            primary = Color(0xFF22D3EE),
+            onPrimary = Color(0xFF04131A),
+            background = Color(0xFF070B14),
+            surface = Color(0xFF111827),
+            surfaceVariant = Color(0xFF1A2435),
+            onSurface = Color(0xFFF1F5F9),
+            onSurfaceVariant = Color(0xFF94A3B8),
+            outline = Color(0xFF293548)
         )
     ) {
         Column(
-            Modifier.fillMaxSize().then(if (isFullscreen) Modifier else Modifier.padding(horizontal = 12.dp, vertical = 8.dp)),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            Modifier
+                .fillMaxSize()
+                .background(Color(0xFF070B14))
+                .then(if (isFullscreen) Modifier else Modifier.padding(horizontal = 14.dp, vertical = 10.dp)),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (!isFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(R.drawable.ic_livetgtv),
-                    contentDescription = "LiveTGTV",
-                    modifier = Modifier.size(44.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("LiveTGTV", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-                    Text("LIVE CHANNELS", style = MaterialTheme.typography.labelSmall)
+            if (!isFullscreen) {
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(42.dp).background(
+                            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(Color(0xFF22D3EE), Color(0xFF2563EB))
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_livetgtv),
+                            contentDescription = "LiveTGTV",
+                            modifier = Modifier.size(30.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    Spacer(Modifier.width(11.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("LiveTGTV", style = MaterialTheme.typography.titleLarge, color = Color.White)
+                            Surface(color = Color(0xFF083344), shape = RoundedCornerShape(5.dp)) {
+                                Text("LIVE", modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp), color = Color(0xFF67E8F9), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        Text("Your channels, all in one place", style = MaterialTheme.typography.labelSmall, color = Color(0xFF94A3B8))
+                    }
+                    IconButton(onClick = { scope.launch { refresh() } }, enabled = !loading) {
+                        Text("↻", color = Color(0xFF67E8F9), style = MaterialTheme.typography.headlineMedium)
+                    }
                 }
-                TextButton(onClick = { scope.launch { refresh() } }) { Text("Refresh") }
             }
 
             selected?.let { channel ->
@@ -432,48 +463,61 @@ private fun LiveTvScreen() {
                         }
                     )
                 }
-                if (!isFullscreen) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(channel.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    IconButton(onClick = {
-                        val updated = favorites.toMutableSet()
-                        if (!updated.add(channel.url)) updated.remove(channel.url)
-                        favorites = updated
-                        prefs.edit().putStringSet("favorites", updated).apply()
-                    }) {
-                        Text(if (favorites.contains(channel.url)) "★" else "☆", color = MaterialTheme.colorScheme.primary)
+                if (!isFullscreen) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(channel.name, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                            Text(channel.group, style = MaterialTheme.typography.labelSmall, color = Color(0xFF94A3B8))
+                        }
+                        IconButton(onClick = {
+                            val updated = favorites.toMutableSet()
+                            if (!updated.add(channel.url)) updated.remove(channel.url)
+                            favorites = updated
+                            prefs.edit().putStringSet("favorites", updated).apply()
+                        }) {
+                            Text(if (favorites.contains(channel.url)) "★" else "☆", color = Color(0xFFFBBF24), style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Speed" to "${speed}x", "PiP" to "⧉").forEach { (label, value) ->
+                            Surface(
+                                color = Color(0xFF111827),
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263449)),
+                                modifier = Modifier.clickable {
+                                    if (label == "Speed") {
+                                        speed = when (speed) { 0.5f -> 0.75f; 0.75f -> 1f; 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 0.5f }
+                                        player.setPlaybackSpeed(speed)
+                                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        activity?.enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
+                                    }
+                                }
+                            ) {
+                                Text(if (label == "Speed") value else "⧉  Picture in picture", modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color(0xFFCBD5E1), style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+                    playbackError?.let {
+                        Surface(color = Color(0xFF3B1720), shape = RoundedCornerShape(10.dp)) {
+                            Text(it, Modifier.fillMaxWidth().padding(10.dp), color = Color(0xFFFDA4AF), style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
-                if (!isFullscreen) Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    TextButton(onClick = {
-                        speed = when (speed) { 0.5f -> 0.75f; 0.75f -> 1f; 1f -> 1.25f; 1.25f -> 1.5f; 1.5f -> 2f; else -> 0.5f }
-                        player.setPlaybackSpeed(speed)
-                    }) { Text("${speed}x") }
-                    TextButton(onClick = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            activity?.enterPictureInPictureMode(
-                                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
-                            )
-                        }
-                    }) { Text("PiP") }
-                }
-                if (!isFullscreen) playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
 
             if (!isFullscreen) {
-            if (showAudioDialog) {
-                val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
-                AlertDialog(
-                    onDismissRequest = { showAudioDialog = false },
-                    title = { Text("Audio track") },
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (audioGroups.isEmpty()) {
-                                Text("No selectable audio tracks are exposed by this stream.")
-                            } else {
-                                audioGroups.forEach { group ->
+                if (showAudioDialog) {
+                    val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+                    AlertDialog(
+                        onDismissRequest = { showAudioDialog = false },
+                        title = { Text("Audio track") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (audioGroups.isEmpty()) Text("No selectable audio tracks are exposed by this stream.")
+                                else audioGroups.forEach { group ->
                                     for (trackIndex in 0 until group.length) {
                                         val format = group.getTrackFormat(trackIndex)
                                         val language = format.language?.takeIf { it.isNotBlank() && it != "und" } ?: "Unknown language"
@@ -494,78 +538,198 @@ private fun LiveTvScreen() {
                                     }
                                 }
                             }
+                        },
+                        confirmButton = { TextButton(onClick = { showAudioDialog = false }) { Text("Close") } }
+                    )
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF101827),
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("Explore channels", style = MaterialTheme.typography.titleLarge, color = Color.White)
+                                Text("Find something worth watching", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            }
+                            Surface(color = Color(0xFF082F49), shape = RoundedCornerShape(9.dp)) {
+                                Text("${channels.size} TOTAL", Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = Color(0xFF67E8F9), style = MaterialTheme.typography.labelSmall)
+                            }
                         }
-                    },
-                    confirmButton = { TextButton(onClick = { showAudioDialog = false }) { Text("Close") } }
-                )
-            }
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Search channels") },
-                singleLine = true
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("Channels", "Favorites", "History").forEach { item ->
-                    FilterChip(selected = mode == item, onClick = { mode = item; category = "All" }, label = { Text(item) })
-                }
-            }
-            val groups = listOf("All") + channels.map { it.group }.distinct().sorted()
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                groups.forEach { group ->
-                    FilterChip(selected = category == group, onClick = { category = group }, label = { Text(group) })
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${visibleChannels.size} channels", style = MaterialTheme.typography.labelMedium)
-                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (mode == "Favorites" && visibleChannels.isEmpty()) {
-                Text("No favorites yet. Tap ☆ beside a channel to save it.")
-            } else if (mode == "History" && visibleChannels.isEmpty()) {
-                Text("Recently played channels will appear here.")
-            }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                items(visibleChannels, key = { it.url }) { channel ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().clickable { play(channel) },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selected?.url == channel.url) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-                    ) {
+                        OutlinedTextField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Search channels by name or category…") },
+                            leadingIcon = { Text("⌕", color = Color(0xFF67E8F9), style = MaterialTheme.typography.headlineSmall) },
+                            trailingIcon = {
+                                if (search.isNotBlank()) TextButton(onClick = { search = "" }) { Text("Clear") }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(13.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF22D3EE),
+                                unfocusedBorderColor = Color(0xFF293548),
+                                focusedContainerColor = Color(0xFF0B1220),
+                                unfocusedContainerColor = Color(0xFF0B1220),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedPlaceholderColor = Color(0xFF64748B),
+                                unfocusedPlaceholderColor = Color(0xFF64748B)
+                            )
+                        )
                         Row(
-                            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
-                            if (channel.logo.isNotBlank()) {
-                                AsyncImage(
-                                    model = channel.logo,
-                                    contentDescription = "${channel.name} logo",
-                                    modifier = Modifier.size(width = 72.dp, height = 46.dp),
-                                    contentScale = ContentScale.Fit
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(R.drawable.ic_livetgtv),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(44.dp)
-                                )
+                            listOf("Channels", "Favorites", "History").forEach { item ->
+                                val active = mode == item
+                                Surface(
+                                    onClick = { mode = item; category = "All" },
+                                    color = if (active) Color(0xFF22D3EE) else Color(0xFF1A2435),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text(
+                                        (if (item == "Favorites") "★  " else if (item == "History") "◷  " else "▦  ") + item,
+                                        Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                        color = if (active) Color(0xFF04202A) else Color(0xFFCBD5E1),
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                }
                             }
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(channel.name, style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    channel.group + if (!channel.licenseUrl.isNullOrBlank()) " · DRM" else "",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (favorites.contains(channel.url)) Text("★", color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
-            }
+
+                val groups = listOf("All") + channels.map { it.group }.distinct().sorted()
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    groups.forEach { group ->
+                        val active = category == group
+                        Surface(
+                            onClick = { category = group },
+                            color = if (active) Color(0xFF164E63) else Color(0xFF111827),
+                            shape = RoundedCornerShape(9.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (active) Color(0xFF0891B2) else Color(0xFF253247))
+                        ) {
+                            Text(
+                                group,
+                                Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                                color = if (active) Color(0xFF67E8F9) else Color(0xFFCBD5E1),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                }
+
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            when (mode) { "Favorites" -> "Your favorites"; "History" -> "Recently watched"; else -> "All channels" },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White
+                        )
+                        Text("${visibleChannels.size} channels available", style = MaterialTheme.typography.labelSmall, color = Color(0xFF94A3B8))
+                    }
+                    if (loading) CircularProgressIndicator(Modifier.size(19.dp), strokeWidth = 2.dp, color = Color(0xFF22D3EE))
+                    TextButton(onClick = { scope.launch { refresh() } }) { Text("Refresh", color = Color(0xFF67E8F9)) }
+                }
+                error?.let {
+                    Surface(color = Color(0xFF3B1720), shape = RoundedCornerShape(12.dp)) {
+                        Text(it, Modifier.fillMaxWidth().padding(12.dp), color = Color(0xFFFDA4AF), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (visibleChannels.isEmpty() && !loading) {
+                    Surface(
+                        Modifier.fillMaxWidth().weight(1f),
+                        color = Color(0xFF101827),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text(if (mode == "Favorites") "☆" else "⌕", color = Color(0xFF67E8F9), style = MaterialTheme.typography.displaySmall)
+                            Text(if (mode == "Favorites") "No saved channels yet" else "No channels found", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                            Text(if (mode == "Favorites") "Tap the star on a channel to keep it here." else "Try another search or category.", color = Color(0xFF94A3B8), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                        columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 270.dp),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(visibleChannels, key = { it.url }) { channel ->
+                            val active = selected?.url == channel.url
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clickable { play(channel) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (active) Color(0xFF102A3A) else Color(0xFF111827),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    if (active) 1.5.dp else 1.dp,
+                                    if (active) Color(0xFF0891B2) else Color(0xFF253247)
+                                ),
+                                tonalElevation = if (active) 3.dp else 0.dp
+                            ) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            Modifier.size(58.dp),
+                                            color = Color(0xFF080E19),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            if (channel.logo.isNotBlank()) {
+                                                AsyncImage(
+                                                    model = channel.logo,
+                                                    contentDescription = "${channel.name} logo",
+                                                    modifier = Modifier.fillMaxSize().padding(6.dp),
+                                                    contentScale = ContentScale.Fit
+                                                )
+                                            } else {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Image(painter = painterResource(R.drawable.ic_livetgtv), contentDescription = null, modifier = Modifier.size(38.dp))
+                                                }
+                                            }
+                                        }
+                                        Spacer(Modifier.width(11.dp))
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(channel.name, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                                            Text(channel.group, color = Color(0xFF94A3B8), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val updated = favorites.toMutableSet()
+                                                if (!updated.add(channel.url)) updated.remove(channel.url)
+                                                favorites = updated
+                                                prefs.edit().putStringSet("favorites", updated).apply()
+                                            },
+                                            modifier = Modifier.size(34.dp)
+                                        ) {
+                                            Text(if (favorites.contains(channel.url)) "★" else "☆", color = if (favorites.contains(channel.url)) Color(0xFFFBBF24) else Color(0xFF64748B), style = MaterialTheme.typography.titleLarge)
+                                        }
+                                    }
+                                    androidx.compose.material3.HorizontalDivider(color = Color(0xFF263449))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (active) {
+                                            Surface(color = Color(0xFF083344), shape = RoundedCornerShape(6.dp)) {
+                                                Text("NOW PLAYING", Modifier.padding(horizontal = 7.dp, vertical = 4.dp), color = Color(0xFF67E8F9), style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        } else {
+                                            Text(if (!channel.licenseUrl.isNullOrBlank()) "DRM PROTECTED" else "LIVE CHANNEL", color = Color(0xFF64748B), style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        Spacer(Modifier.weight(1f))
+                                        Text(if (active) "Playing  ●" else "Watch  →", color = if (active) Color(0xFF67E8F9) else Color(0xFF94A3B8), style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
